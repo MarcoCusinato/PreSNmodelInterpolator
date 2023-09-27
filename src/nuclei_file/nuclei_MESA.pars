@@ -1,0 +1,100 @@
+provides the parameters and properties of the nuclear species of the
+model
+
+The namelist contains:
+- nsp = number of species contained in the data
+- species = Integer array, Dimension ( nsp )
+  with the array indices of the species in the initial-data file.
+  List them in decreasing order of importance, i.e., the ones that are
+  to be simulated first and the ones that are nice to have but not
+  crucial last.
+- anuc, znuc, mnuc, gnuc: real arrays containing the mass and charge
+  numbers, mass ( in u ) and statistical weights of the nuclei.  The
+  arrays are sorted in the same way as the initial-data file.
+
+
+In the MESA files, these are:
+- 19 species:
+   1. n
+   2. H1
+   3. He3
+   4. He4
+   5. C12	
+   6. N14
+   7. O16
+   8. Ne20
+   9. Mg24
+   10. Si28
+   11. S32
+   12. Ar36
+   13. Ca40
+   14. Ti44
+   15. Cr48
+   16. Fe52
+   17. Fe54
+   18. Ni56
+   19. Fe56
+- the nuclei {should/could/might/prefer to} be sorted as follows:
+  |-------+---------+----+----+---+---|
+  | Index | Nucleus |  A |  Z | m | g |
+  |-------+---------+----+----+---+---|
+  |     4 | He4     |  4 |  2 |   |   |
+  |     7 | O16     | 16 |  8 |   |   |
+  |    10 | Si28    | 28 | 14 |   |   |
+  |    17 | Fe54    | 54 | 26 |   |   |
+  |     2 | H       |  1 |  1 |   |   |
+  |     5 | C12     | 12 |  6 |   |   |
+  |    18 | Ni56    | 56 | 28 |   |   |
+  |    19 | Fe56    | 56 | 26 |   |   |
+  |    11 | S32     | 32 | 16 |   |   |
+  |     8 | Ne20    | 20 | 10 |   |   |
+  |    15 | Cr48    | 48 | 24 |   |   |
+  |     9 | Mg24    | 24 | 12 |   |   |
+  |    12 | Ar36    | 36 | 18 |   |   |
+  |    13 | Ca40    | 40 | 20 |   |   |
+  |     6 | N14     | 14 |  7 |   |   |
+  |    14 | Ti44    | 44 | 22 |   |   |
+  |     1 | n       |  1 |  0 |   |   |
+  |     3 | He3     |  3 |  2 |   |   |
+  |    16 | Fe52    | 52 | 26 |   |   |
+  |-------+---------+----+----+---+---|
+
+  if we take into account the innermost 40e3 km only, we have to sort
+  them instead:
+  |-------+---------+----+----+-------+---|
+  | Index | Nucleus |  A |  Z | m [u] | g |
+  |-------+---------+----+----+-------+---|
+  |     7 | O16     | 16 |  8 |       |   |
+  |    10 | Si28    | 28 | 14 |       |   |
+  |    17 | Fe54    | 54 | 26 |       |   |
+  |    18 | Ni56    | 56 | 28 |       |   |
+  |    19 | Fe56    | 56 | 26 |       |   |
+  |     5 | C12     | 12 |  6 |       |   |
+  |    11 | S32     | 32 | 16 |       |   |
+  |     4 | He4     |  4 |  2 |       |   |
+  |     8 | Ne20    | 20 | 10 |       |   |
+  |    15 | Cr48    | 48 | 24 |       |   |
+  |     9 | Mg24    | 24 | 12 |       |   |
+  |    12 | Ar36    | 36 | 18 |       |   |
+  |    13 | Ca40    | 40 | 20 |       |   |
+  |     2 | H       |  1 |  1 |       |   |
+  |    14 | Ti44    | 44 | 22 |       |   |
+  |     1 | n       |  1 |  0 |       |   |
+  |    16 | Fe52    | 52 | 26 |       |   |
+  |     6 | N14     | 14 |  7 |       |   |
+  |     3 | He3     |  3 |  2 |       |   |
+  |-------+---------+----+----+-------+---|
+
+
+  Please note that my masses are atomic masses.  They are not quite correct, but should be sufficiently accurate.
+
+&nucpars
+ nsp = 19
+ inuc =  7, 10,  5, 11,  4,  8, 15,  9, 12, 13,  2, 14,  1,  6,  3, 17, 18, 19, 16
+ anuc =  16, 28, 12, 32,  4, 20, 48, 24, 36, 40,  1, 44,  1, 14,  3, 54, 56, 56, 52
+ znuc =  8, 14,  6, 16,  2, 10, 24, 12, 18, 20,  1, 22,  0,  7,  2, 26, 28, 26, 26
+ mnuc =  15.9949146, 27.9769265, 12.0000000, 31.9720707, 4.0026032, 19.9924402, 47.9540359, 23.9850419, 35.9675463, 39.9625912, 1.0078250, 43.9596902, 1.0086649, 14.0030740, 3.0160293, 53.9396148, 55.9421363, 55.9349421, 51.9481165
+ gnuc =  1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 2., 1., 2., 3., 2., 1., 1., 1., 1.
+/
+
+ !! PLEASE NOTE THAT THE 'Fe' SPECIES IS NOT PRESENT IN THE MESA FILES. !!
