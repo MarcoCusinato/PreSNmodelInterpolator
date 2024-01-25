@@ -37,7 +37,7 @@ The thermodynamics quantities appearing in the `star.dat` are, in order: <br>
     <td>Pressure</td>
     <td>Entropy</td>
     <td>Internal energy</td>
-    <td>$\overine{A}$</td>
+    <td>$\overline{A}$</td>
     <td>Radial velocity</td>
     <td>Angular velocity</td>
     <td>Toroidal B field</td>
