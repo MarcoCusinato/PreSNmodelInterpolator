@@ -347,6 +347,7 @@ class InterpolatePresnModel:
         ## Nuclei ##
         self.nuclei[:, 0] = self.data[:, 1]
         self.nuclei[:, 1:] = convert_species(self.nuclei[:, 1:], self.data[:, 11:], self.file_lines)
+        self.comment = ''
 
     def __KEPLER_wo_species_order_nuclei_thermo(self):
         """
@@ -385,7 +386,6 @@ class InterpolatePresnModel:
         else:
             raise ValueError('More than one species missing.')
               
-    
     def __check_KEPLER_species(self):
         """
         Method that checks the species in the KEPLER file.
@@ -402,6 +402,7 @@ class InterpolatePresnModel:
                 species_in_file = species_in_file[species_in_file.index('nt1'):]
                 break
         ## Check if all species are present ##
+        species_in_file = [el.casefold() for el in species_in_file]
         missing_elements = list(set(species) - set(species_in_file))
         if len(missing_elements) == 0:
             self.comment = ''
@@ -413,13 +414,13 @@ class InterpolatePresnModel:
                 missing_species_indices.append(species.index(el))
             return missing_species_indices
             
-
     def __MESA_order_nuclei_thermo(self):
         """
         Diveìdes the data from the MESA format in an array containing the
         thermodynamic quantities and one containing the chemical abundances.
         Since no 'Fe' group is provided it is left to 0.
         """
+        self.comment = 'Missing species: Fe group. '
         ## Thermodynamic quantities ##
         self.thermo[:, 0] = self.u.to_cm(np.array(10 ** self.data['logR'])) # radius
         self.thermo[:, 1] = np.array(10 ** self.data['logRho']) # rho
@@ -433,6 +434,7 @@ class InterpolatePresnModel:
             print('Exception')
             self.thermo[:, 6] = self.thermo[:, 4] / ( np.array(self.data['csound']) ** 2 * \
                                                  self.thermo[:, 1] / self.thermo[:, 4] -1) # internal energy
+            self.comment += 'Internal energy calculated from a perfect gas equation of state.'
         self.thermo[:, 7] = np.array(self.data['abar']) # Abar
         self.thermo[:, 8] = np.array(self.data['velocity']) # velocity
         self.thermo[:, 9] = np.array(self.data['omega']) # omega
@@ -446,8 +448,7 @@ class InterpolatePresnModel:
         self.nuclei[:, 0] = self.thermo[:, 0]
         for i, key in enumerate(keys):
             self.nuclei[:, i + 1] = np.array(self.data[key])
-        
-        
+         
     def __define_grid(self):
         """
         Method that defines the grid of the model, if no grid is provided it uses the default values.
@@ -588,8 +589,7 @@ class InterpolatePresnModel:
         json_data = result
         with open(json_path, 'w') as f:
             json.dump(json_data, f, indent=4)
-        
-    
+
     def __save_interpolated_model(self):
         """
         Method that saves the interpolated model.
