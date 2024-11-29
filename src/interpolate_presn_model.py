@@ -510,6 +510,9 @@ class InterpolatePresnModel:
                 self.nuclei_interp[:, i+1] = np.interp(self.radius[:, 2], self.nuclei[:, 0], self.nuclei[:, i])
             for i in range(self.thermo.shape[1]):
                 self.thermo_interp[:, i+1] = np.interp(self.radius[:, 2], self.thermo[:, 0], self.thermo[:, i])
+        if self.has_bfield:
+            self.thermo_interp[:, -1] = np.where(self.thermo_interp[:, -1] < 0, 0.0, self.thermo_interp[:, -1])
+            self.thermo_interp[:, -2] = np.where(self.thermo_interp[:, -2] < 0, 0.0, self.thermo_interp[:, -2])
         print('Model interpolated')
     
     def __calculate_mass(self):
