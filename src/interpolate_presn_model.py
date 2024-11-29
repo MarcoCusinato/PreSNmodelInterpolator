@@ -3,6 +3,7 @@ from src.all_species_src.species_conv import convert_species
 import json
 import os
 import platform
+import pandas as pd
 
 class unit_converter:
     """
@@ -302,6 +303,9 @@ class InterpolatePresnModel:
             self.data = np.delete(self.data, (0), 1)
             self.data = np.flip(self.data, axis=0)
             self.data = np.nan_to_num(self.data)
+            self.data = pd.DataFrame(data=self.data,
+                                     columns=np.array(self.file_lines[self.header_lines-1].split()[1:],
+                                                      dtype=str))
             print('\tInternal energy data not found, calculating it using a perfect gas equation of state.')
             print('\tHeavy iron peak nuclei (\'Fe\' species) not found, setting them to 0.')
             print('\tPlease wait...')
@@ -417,28 +421,33 @@ class InterpolatePresnModel:
         Since no 'Fe' group is provided it is left to 0.
         """
         ## Thermodynamic quantities ##
-        self.thermo[:, 0] = self.u.to_cm(self.data[:, 24]) # radius
-        self.thermo[:, 1] = 10 ** self.data[:, 1] # rho
-        self.thermo[:, 2] = self.data[:, 25] # temperature
-        self.thermo[:, 3] = self.data[:, 38] # Ye
-        self.thermo[:, 4] = self.data[:, 28] # pressure
-        self.thermo[:, 5] = self.data[:, 13] # entropy
-        self.thermo[:, 6] = self.thermo[:, 4] / ( self.data[:, 15] ** 2 * \
+        self.thermo[:, 0] = self.u.to_cm(np.array(10 ** self.data['logR'])) # radius
+        self.thermo[:, 1] = np.array(10 ** self.data['logRho']) # rho
+        self.thermo[:, 2] = np.array(10 ** self.data['logT']) # temperature
+        self.thermo[:, 3] = np.array(self.data['ye']) # Ye
+        self.thermo[:, 4] = np.array(10 ** self.data['logP']) # pressure
+        self.thermo[:, 5] = np.array(self.data['entropy']) # entropy
+        try:
+            self.thermo[:, 6] = np.array(self.data['energy']) # internal energy
+        except:
+            print('Exception')
+            self.thermo[:, 6] = self.thermo[:, 4] / ( np.array(self.data['csound']) ** 2 * \
                                                  self.thermo[:, 1] / self.thermo[:, 4] -1) # internal energy
-        self.thermo[:, 7] = self.data[:, 37] # Abar
-        self.thermo[:, 8] = self.data[:, 12] # velocity
-        self.thermo[:, 9] = self.data[:, 115] # omega
+        self.thermo[:, 7] = np.array(self.data['abar']) # Abar
+        self.thermo[:, 8] = np.array(self.data['velocity']) # velocity
+        self.thermo[:, 9] = np.array(self.data['omega']) # omega
         if self.has_bfield:
-            self.thermo[:, 10] = 10 ** self.data[:, -1] # toroidal magnetic field
-            self.thermo[:, 11] = 10 ** self.data[:, -2] # poloidal magnetic field
+            self.thermo[:, 10] = np.array(10 ** self.data['dynamo_log_B_phi']) # toroidal magnetic field
+            self.thermo[:, 11] = np.array(10 ** self.data['dynamo_log_B_r']) # poloidal magnetic field
         ## Nuclei ##
+        keys = ['neut', 'h1', 'he3', 'he4', 'c12', 'n14', 'o16', 'ne20', 'mg24',
+                'si28', 's32', 'ar36', 'ca40', 'ti44', 'cr48', 'fe52', 'fe54', 'ni56',
+                'fe56']
         self.nuclei[:, 0] = self.thermo[:, 0]
-        self.nuclei[:, 1:3] = self.data[:, 70:72] # n, H1
-        self.nuclei[:, 3:16] = self.data[:, 73:86] # He3, He4, C12, O16, Ne20, Mg24, Si28, S32, Ar36, Ca40, Ti44, Cr48
-        self.nuclei[:, 16:18] = self.data[:, 87:89] # Fe52, Fe54
-        self.nuclei[:, 18] = self.data[:, 90] # Ni56
-        self.nuclei[:, 19] = self.data[:, 89] # Fe56
-
+        for i, key in enumerate(keys):
+            self.nuclei[:, i + 1] = np.array(self.data[key])
+        
+        
     def __define_grid(self):
         """
         Method that defines the grid of the model, if no grid is provided it uses the default values.
@@ -487,20 +496,20 @@ class InterpolatePresnModel:
         self.thermo_interp[:, 1] = self.radius[:, 2]
         if self.rmin < self.nuclei[0, 0]:
             extrapolation_index = np.argmax(self.radius[:,2] > self.nuclei[0, 0]) + 1
-            for i in range(2, self.nuclei.shape[1]):
-                a, b, c = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i-1])
-                self.nuclei_interp[:extrapolation_index, i] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
-                self.nuclei_interp[extrapolation_index:, i] = np.interp(self.radius[extrapolation_index:, 2], self.nuclei[:, 0], self.nuclei[:, i - 1])
-            for i in range(2, self.thermo.shape[1]):
+            for i in range(1, self.nuclei.shape[1]):
+                a, b, c = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i])
+                self.nuclei_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
+                self.nuclei_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.nuclei[:, 0], self.nuclei[:, i])
+            for i in range(1, self.thermo.shape[1]):
                 
-                a, b, c = self.__parabolic_coefficient(self.thermo[:, 0], self.thermo[:, i-1])
-                self.thermo_interp[:extrapolation_index, i] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
-                self.thermo_interp[extrapolation_index:, i] = np.interp(self.radius[extrapolation_index:, 2], self.thermo[:, 0], self.thermo[:, i - 1])
+                a, b, c = self.__parabolic_coefficient(self.thermo[:, 0], self.thermo[:, i])
+                self.thermo_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
+                self.thermo_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.thermo[:, 0], self.thermo[:, i])
         else:
-            for i in range(2, self.nuclei.shape[1]):
-                self.nuclei_interp[:, i] = np.interp(self.radius[:, 2], self.nuclei[:, 0], self.nuclei[:, i])
+            for i in range(1, self.nuclei.shape[1]):
+                self.nuclei_interp[:, i+1] = np.interp(self.radius[:, 2], self.nuclei[:, 0], self.nuclei[:, i])
             for i in range(self.thermo.shape[1]):
-                self.thermo_interp[:, i] = np.interp(self.radius[:, 2], self.thermo[:, 0], self.thermo[:, i])
+                self.thermo_interp[:, i+1] = np.interp(self.radius[:, 2], self.thermo[:, 0], self.thermo[:, i])
         print('Model interpolated')
     
     def __calculate_mass(self):
