@@ -463,6 +463,9 @@ class InterpolatePresnModel:
             else:
                 self.rmax = 1e13
             self.ngrid = 16000
+        else:
+            if self.rmax > self.nuclei[-1, 0]:
+                self.rmax = self.nuclei[-1, 0]
         assert self.rmin < self.rmiddle < self.rmax, 'rmin < rmiddle < rmax'
         assert self.ngrid > 0, 'ngrid > 0'
         assert self.rmin >= 0, 'rmin >= 0'
