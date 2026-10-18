@@ -50,6 +50,7 @@ class InterpolatePresnModel:
         self.rmiddle = None
         self.ngrid = None
         self.ftype = None
+        self.comment = ''
         ## SET KWARGS VALUES
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -114,7 +115,7 @@ class InterpolatePresnModel:
             path = os.path.abspath(self.file_path).split('/')
         ## Removing the extension and the other not useful stuff##
         extensions = ['mso_final_profile.data', 'mso_final_profile.txt', '.txt',
-                      '@presn', '.presn', '.presn_structure', '_presn']
+                      '@presn', '.presn', '.presn_structure', '_presn', '.data']
         ## find paper name from folder name ##
         try:
             int(path[-2][-2:])
@@ -193,12 +194,13 @@ class InterpolatePresnModel:
                     format = 'KEPLER_std'
             return format, line_index
         
-        def check_mesa_file(lines):
+        def find_MESA_format(lines):
             ## MESA file checker ##
             """
             To check if the file is a MESA file, we check if the line with the initial mass is present.
             """
             correct_MESA = False
+            format = None
             for line in lines:
                 if 'initial_mass' in line:
                     correct_MESA = True
@@ -207,19 +209,25 @@ class InterpolatePresnModel:
                if 'logT' in lines[lindex]:
                     line_index = lindex + 1
                     break
+            for lindex in range(1, len(lines)):
+                if 'al26' in lines[lindex]:
+                    format = 'MESA_128'
+                    break
+            if format is None:
+                format = 'MESA'
             if not correct_MESA:
                 raise ValueError('The file is not a MESA file.')
-            return line_index
+            return format, line_index
         
         ### Main part of the method ###
         line_index = 0
         if format in ['MESA', 'KEPLER']:
+            with open(self.file_path, 'r') as f:
+                lines = f.readlines()
             if format == 'KEPLER':
-                with open(self.file_path, 'r') as f:
-                    lines = f.readlines()
                 format, line_index = find_kepler_version(lines)
             else:
-                line_index = check_mesa_file(lines)
+                format, line_index = find_MESA_format(lines)
         else:
             print('Auto-detecting file format.\nPlease wait...')
             with open(self.file_path, 'r') as f:
@@ -227,9 +235,8 @@ class InterpolatePresnModel:
             if 'VERSION' in lines[0]:
                 format, line_index = find_kepler_version(lines)
             else:
-                line_index = check_mesa_file(lines)
+                format, line_index = find_MESA_format(lines)
                 print('MESA format detected.')
-                format = 'MESA'
         return format, lines, line_index
     
     def __find_footer(self):
@@ -299,16 +306,13 @@ class InterpolatePresnModel:
             self.data = np.delete(self.data, (0, 1), 1)
             self.data = np.nan_to_num(self.data)
             self.__KEPLER_wo_species_order_nuclei_thermo()
-        elif self.format == 'MESA':
+        elif self.format in ['MESA', 'MESA_128'] :
             self.data = np.delete(self.data, (0), 1)
             self.data = np.flip(self.data, axis=0)
             self.data = np.nan_to_num(self.data)
             self.data = pd.DataFrame(data=self.data,
                                      columns=np.array(self.file_lines[self.header_lines-1].split()[1:],
                                                       dtype=str))
-            print('\tInternal energy data not found, calculating it using a perfect gas equation of state.')
-            print('\tHeavy iron peak nuclei (\'Fe\' species) not found, setting them to 0.')
-            print('\tPlease wait...')
             self.__MESA_order_nuclei_thermo()
         print('Data ordered.')
 
@@ -420,7 +424,56 @@ class InterpolatePresnModel:
         thermodynamic quantities and one containing the chemical abundances.
         Since no 'Fe' group is provided it is left to 0.
         """
-        self.comment = 'Missing species: Fe group. '
+        ATOMIC_NUMBER = {
+            "h": 1, "he": 2, "li": 3, "be": 4, "b": 5, "c": 6, "n": 7,
+            "o": 8, "f": 9, "ne": 10, "na": 11, "mg": 12, "al": 13,
+            "si": 14, "p": 15, "s": 16, "cl": 17, "ar": 18, "k": 19,
+            "ca": 20, "sc": 21, "ti": 22, "v": 23, "cr": 24, "mn": 25,
+            "fe": 26, "co": 27, "ni": 28, "cu": 29, "zn": 30,
+                        }
+        IRON_PEAK = ["ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn"]
+        def sum_isotopes(A_min, A_max, exclude=''):
+            out_value = np.zeros(len(self.nuclei[:, 0]))
+            dd_keys = self.data.keys()
+            for A in range(A_min, A_max+1):
+                for e in ATOMIC_NUMBER.keys():
+                    el = e + str(A)
+                    if (el in dd_keys and el != exclude):
+                        out_value += self.data[el].values
+            return out_value
+        
+        def sum_iron(mode, add=None, exlude=''):
+            out_value = np.zeros(len(self.nuclei[:, 0]))
+            dd_keys = self.data.keys()
+            if mode == 'fe54':
+                for ir in IRON_PEAK:
+                    A = 2 * ATOMIC_NUMBER[ir] + 2
+                    el = ir + str(A)
+                    if add is not None and el == add:
+                        add = None
+                    if el in dd_keys and el != exlude:
+                        out_value += self.data[el].values
+            elif mode == 'ni56':
+                for ir in IRON_PEAK:
+                    A = 2 * ATOMIC_NUMBER[ir] + 2
+                    for a in range(A):
+                        el =  ir + str(a)
+                        if add is not None and el == add:
+                            add = None
+                        if el in dd_keys and el != exlude:
+                            out_value += self.data[el].values
+            elif mode == 'iron':
+                for ir in IRON_PEAK:
+                    A = 2 * ATOMIC_NUMBER[ir] + 3 + 1
+                    for a in range(A, 200):
+                        el =  ir + str(a)
+                        if add is not None and el == add:
+                            add = None
+                        if el in dd_keys and el != exlude:
+                            out_value += self.data[el].values
+            if add is not None and add in dd_keys:
+                out_value += self.data[add].values
+            return out_value
         ## Thermodynamic quantities ##
         self.thermo[:, 0] = self.u.to_cm(np.array(10 ** self.data['logR'])) # radius
         self.thermo[:, 1] = np.array(10 ** self.data['logRho']) # rho
@@ -431,7 +484,7 @@ class InterpolatePresnModel:
         try:
             self.thermo[:, 6] = np.array(self.data['energy']) # internal energy
         except:
-            print('Exception')
+            print('\tInternal energy data not found, calculating it using a perfect gas equation of state.')
             self.thermo[:, 6] = self.thermo[:, 4] / ( np.array(self.data['csound']) ** 2 * \
                                                  self.thermo[:, 1] / self.thermo[:, 4] -1) # internal energy
             self.comment += 'Internal energy calculated from a perfect gas equation of state.'
@@ -441,13 +494,62 @@ class InterpolatePresnModel:
         if self.has_bfield:
             self.thermo[:, 10] = np.array(10 ** self.data['dynamo_log_B_phi']) # toroidal magnetic field
             self.thermo[:, 11] = np.array(10 ** self.data['dynamo_log_B_r']) # poloidal magnetic field
+        
         ## Nuclei ##
-        keys = ['neut', 'h1', 'he3', 'he4', 'c12', 'n14', 'o16', 'ne20', 'mg24',
-                'si28', 's32', 'ar36', 'ca40', 'ti44', 'cr48', 'fe52', 'fe54', 'ni56',
+        keys = ['neut',
+                'h1',
+                'he3',
+                'he4',
+                'c12',
+                'n14',
+                'o16',
+                'ne20',
+                'mg24',
+                'si28',
+                's32',
+                'ar36',
+                'ca40',
+                'ti44',
+                'cr48',
+                'fe52',
+                'fe54',
+                'ni56',
+                'fe56',
+                'Fe group']
+        direct_map = [
+                'neut',
+                'h1',
+                'he3',
+                'c12',
+                'n14',
+                'o16',
+                'ne20',
+                'si28',
+                'fe52',
                 'fe56']
+        other_elements = {
+            'he4': sum_isotopes(2, 5),
+            'mg24': sum_isotopes(23, 28, 'si28'),
+            's32': sum_isotopes(29, 35),
+            'ar36': sum_isotopes(36, 39),
+            'ca40': sum_isotopes(40, 43),
+            'ti44': sum_isotopes(44, 47),
+            'cr48': sum_isotopes(48, 51),
+            'fe54': sum_iron('fe54', 'fe56'),
+            'ni56': sum_iron('ni56'),
+            'Fe group': sum_iron('iron', None, 'fe56')
+        }
         self.nuclei[:, 0] = self.thermo[:, 0]
         for i, key in enumerate(keys):
-            self.nuclei[:, i + 1] = np.array(self.data[key])
+            
+            if key in direct_map:
+                compo_data = np.array(self.data[key])
+            else:
+                compo_data = other_elements[key]
+            if np.all(compo_data == 0):
+                print(f'\t {key} nuclei not found, setting them to 0.')
+                self.comment += f'Missing species: {key} group. '
+            self.nuclei[:, i + 1] = compo_data
          
     def __define_grid(self):
         """
@@ -501,13 +603,13 @@ class InterpolatePresnModel:
         if self.rmin < self.nuclei[0, 0]:
             extrapolation_index = np.argmax(self.radius[:,2] > self.nuclei[0, 0]) + 1
             for i in range(1, self.nuclei.shape[1]):
-                a, b, c = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i])
-                self.nuclei_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
+                poly = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i])
+                self.nuclei_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
                 self.nuclei_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.nuclei[:, 0], self.nuclei[:, i])
             for i in range(1, self.thermo.shape[1]):
                 
-                a, b, c = self.__parabolic_coefficient(self.thermo[:, 0], self.thermo[:, i])
-                self.thermo_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + b * self.radius[:extrapolation_index, 2] + c
+                poly = self.__parabolic_coefficient(self.thermo[:, 0], self.thermo[:, i])
+                self.thermo_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
                 self.thermo_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.thermo[:, 0], self.thermo[:, i])
         else:
             for i in range(1, self.nuclei.shape[1]):
@@ -562,8 +664,6 @@ class InterpolatePresnModel:
         self.model_properties['original_model'] = self.model_properties['name']
         self.model_properties['name'] = self.model_name
         self.model_properties['enclosed_mass'] = '{:.1f}'.format(self.mass)
-        if self.format == 'MESA':
-            self.model_properties['comment'] += ' Internal energy calculated from a perfect gas equation of state. Only 19 element species are provided.'
         if self.comment != '':
             self.model_properties['comment'] += ' ' + self.comment + '.'
         ## sort the dictionary ##
@@ -647,9 +747,10 @@ class InterpolatePresnModel:
             output_text += '   rho, tem, y_e, pre, ent, erg, abr, vel, omg\n' + \
                         '----------------------------------------------------------\n'
         if self.format == 'MESA':
-            output_text += '   Warning: internal energy derived with perfect gas\n' + \
-                        'EOS: U = P / (gamma - 1)' + \
-                        '----------------------------------------------------------\n'
+            if 'Internal energy calculated' in self.comment:
+                output_text += '   Warning: internal energy derived with perfect gas\n' + \
+                            'EOS: U = P / (gamma - 1)' + \
+                            '----------------------------------------------------------\n'
         return output_text
     
     def __produce_Heger_pars(self):
@@ -671,4 +772,13 @@ class InterpolatePresnModel:
         """
         x_points = x[:4]
         y_points = y[:4]
+        if len(x_points) < 3:
+            raise ValueError("At least three points are needed for a quadratic fit.")
+
+        if not np.all(np.isfinite(x_points)) or not np.all(np.isfinite(y_points)):
+            raise ValueError("Non-finite values encountered during polynomial fitting.")
+
+        if np.unique(x_points).size < 3:
+            raise ValueError("Insufficient distinct radii for a quadratic fit.")
+        return np.polynomial.Polynomial.fit(x_points, y_points, deg=2)
         return np.polyfit(x_points, y_points, 2)
