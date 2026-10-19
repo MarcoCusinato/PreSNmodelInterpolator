@@ -770,8 +770,8 @@ class InterpolatePresnModel:
         """
         Method that calculates the coefficients of a parabola given three points.
         """
-        x_points = x[:4]
-        y_points = y[:4]
+        x_points = x[1:4]
+        y_points = y[1:4]
         if len(x_points) < 3:
             raise ValueError("At least three points are needed for a quadratic fit.")
 
@@ -781,4 +781,3 @@ class InterpolatePresnModel:
         if np.unique(x_points).size < 3:
             raise ValueError("Insufficient distinct radii for a quadratic fit.")
         return np.polynomial.Polynomial.fit(x_points, y_points, deg=2)
-        return np.polyfit(x_points, y_points, 2)
