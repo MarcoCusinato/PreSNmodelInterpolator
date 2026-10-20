@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import pandas as pd
+from scipy.optimize import curve_fit
 
 class unit_converter:
     """
@@ -603,13 +604,16 @@ class InterpolatePresnModel:
         if self.rmin < self.nuclei[0, 0]:
             extrapolation_index = np.argmax(self.radius[:,2] > self.nuclei[0, 0]) + 1
             for i in range(1, self.nuclei.shape[1]):
-                poly = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i])
-                self.nuclei_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
+                a, c = self.__parabolic_coefficient(self.nuclei[:, 0], self.nuclei[:, i])
+                #self.nuclei_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
+                self.nuclei_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + c
                 self.nuclei_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.nuclei[:, 0], self.nuclei[:, i])
             for i in range(1, self.thermo.shape[1]):
                 
                 poly = self.__parabolic_coefficient(self.thermo[:, 0], self.thermo[:, i])
-                self.thermo_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
+                a, c = poly
+                #self.thermo_interp[:extrapolation_index, i+1] = poly(self.radius[:extrapolation_index, 2])
+                self.thermo_interp[:extrapolation_index, i+1] = a * self.radius[:extrapolation_index, 2] ** 2 + c
                 self.thermo_interp[extrapolation_index:, i+1] = np.interp(self.radius[extrapolation_index:, 2], self.thermo[:, 0], self.thermo[:, i])
         else:
             for i in range(1, self.nuclei.shape[1]):
@@ -749,7 +753,7 @@ class InterpolatePresnModel:
         if self.format == 'MESA':
             if 'Internal energy calculated' in self.comment:
                 output_text += '   Warning: internal energy derived with perfect gas\n' + \
-                            'EOS: U = P / (gamma - 1)' + \
+                            'EOS: U = P / (gamma - 1)\n' + \
                             '----------------------------------------------------------\n'
         return output_text
     
@@ -768,16 +772,21 @@ class InterpolatePresnModel:
     ## UTILITY METHODS
     def __parabolic_coefficient(self, x, y):
         """
-        Method that calculates the coefficients of a parabola given three points.
+        Fit q = a*x**2 + c, with x = r/r0, on r0 <= r <= 2*r0 and evaluate
+        it for r_new < r0. If log=True the fit is done on ln(q).
         """
-        x_points = x[1:4]
-        y_points = y[1:4]
-        if len(x_points) < 3:
-            raise ValueError("At least three points are needed for a quadratic fit.")
+        def f(xx, a, c):
+            return a * xx ** 2 + c
+        r0 = x[0]
+        points  = (x <= 2 * r0)
+        x_points = x[points]
+        y_points = y[points]
 
-        if not np.all(np.isfinite(x_points)) or not np.all(np.isfinite(y_points)):
-            raise ValueError("Non-finite values encountered during polynomial fitting.")
 
-        if np.unique(x_points).size < 3:
-            raise ValueError("Insufficient distinct radii for a quadratic fit.")
-        return np.polynomial.Polynomial.fit(x_points, y_points, deg=2)
+        if x_points.size < 3:
+            x_points = x[:4]
+            y_points = x[:4]
+        (a, c), _ = curve_fit(f, x_points, y_points, p0=[0.0, y_points[0]])
+        c += y_points[0] - f(r0, a, c)
+
+        return a, c
