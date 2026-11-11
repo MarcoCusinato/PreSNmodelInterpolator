@@ -11,6 +11,14 @@ Small `Python` package to interpolate pre-supernova files from [MESA](https://do
 ## Requirements
 The following `Python` package is mandatory to run the script:
  - [NumPy](https://numpy.org/)
+ - [Pandas](https://pandas.pydata.org/)
+ - [SciPy](https://scipy.org/)
+ - [Astropy](https://www.astropy.org/)
+ 
+ To install all requirements run
+ ```
+ pip install -r requirements.txt
+ ```
 ## How to run
 Before starting to use the package make sure that the original presupernova model is made of just one file. Running
 ```

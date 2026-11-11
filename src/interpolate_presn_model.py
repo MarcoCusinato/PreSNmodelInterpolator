@@ -98,7 +98,9 @@ class InterpolatePresnModel:
             if not os.path.exists(result_path):
                 os.mkdir(result_path)
         else:
-            assert os.path.exists(save_path), 'The path provided does not exist.'
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+                print(f'Created {save_path}')
             result_path = os.path.join(save_path, self.model_name)
             if not os.path.exists(result_path):
                 os.mkdir(result_path)
@@ -145,7 +147,10 @@ class InterpolatePresnModel:
         return: dict, properties of the model.
         """
         print('Loading json file...')
-        assert os.path.exists(self.json_file_path), 'The json file does not exist.'
+        if not os.path.exists(self.json_file_path):
+            import warnings
+            warnings.warn('The json file does not exist.')
+            return False
         with open(self.json_file_path) as f:
             json_properties = json.load(f)
         m_name = self.model_name.replace('_' + self.paper_name, '')
@@ -725,7 +730,8 @@ class InterpolatePresnModel:
         print('Saving grid...')
         np.savetxt(os.path.join(self.result_path, 'initial_model.x.dat'), self.radius, fmt = '\t%d\t%.20E\t%.20E\t%.20E')
         np.savetxt(os.path.join(self.result_path, 'initial_model.y.dat'), self.theta, fmt = '\t%d\t%.20E')
-        self.__update_model_list()
+        if self.model_properties is not False:
+            self.__update_model_list()
         print('Model saved.')
 
     def __produce_text(self):
