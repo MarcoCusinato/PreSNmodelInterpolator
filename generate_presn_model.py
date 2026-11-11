@@ -16,6 +16,8 @@ parser.add_argument('--ngrid', type=int, default=None, help='Number of grid cell
 parser.add_argument('--file-type', type=int, default=None, help='1 (old Heger file format) thermodynamics quantities' + \
                     ' followed by mass fraction of all the elements, 2 (new Heger file format) thermodynamics quantities followed by 20 atomic species')
 parser.add_argument('--has-bfield', action='store_true', help='Magnetic field is included in the model')
+parser.add_argument('--convolve', action='store_true', help='Apply convolution to the interpolated model.')
+parser.add_argument('--convolution-step', type=int, default=None, help='Cells to use in the convolution kernel.')
 
 args = parser.parse_args()
 InterpolatePresnModel(file_path=args.model_path,
@@ -25,4 +27,6 @@ InterpolatePresnModel(file_path=args.model_path,
                       rmax = args.rmax,
                       rmiddle = args.rmiddle,
                       ngrid = args.ngrid,
-                      ftype = args.file_type)
+                      ftype = args.file_type,
+                      convolve=args.convolve,
+                      convolution_step=args.convolution_step)

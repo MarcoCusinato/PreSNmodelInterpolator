@@ -5,6 +5,7 @@ import os
 import platform
 import pandas as pd
 from scipy.optimize import curve_fit
+from astropy.convolution import convolve, Box1DKernel
 
 class unit_converter:
     """
@@ -55,6 +56,8 @@ class InterpolatePresnModel:
         ## SET KWARGS VALUES
         for key, value in kwargs.items():
             setattr(self, key, value)
+        if not hasattr(self, 'convolve'):
+            self.convolve = False
         self.file_path = file_path
         self.json_file_path = models_properties_path
         ## GET FILE NAME
@@ -80,6 +83,8 @@ class InterpolatePresnModel:
         self.__interpolate_model()
         ## CALCULATE THE MASS
         self.mass = self.__calculate_mass()
+        if self.convolve:
+            self.__convolve_model()
         ## SAVE THE MODEL
         self.__save_interpolated_model()
         
@@ -702,6 +707,27 @@ class InterpolatePresnModel:
         with open(json_path, 'w') as f:
             json.dump(json_data, f, indent=4)
 
+    def __convolve_model(self):
+        """
+        Uses the convolution in astropy to smooth the variables in the
+        model.
+        """
+        if not hasattr(self, 'convolution_step') or self.convolution_step is None:
+            self.convolution_step = int(len(self.thermo_interp) * 0.001)
+        if self.convolution_step % 2 == 0:
+            self.convolution_step += 1
+        kernel = Box1DKernel(self.convolution_step)
+        for i in range(2, self.thermo_interp.shape[1]):
+            self.thermo_interp[:, i] = convolve(self.thermo_interp[:, i],
+                                                kernel, 'extend')
+        for i in range(2, self.nuclei_interp.shape[1]):
+            self.nuclei_interp[:, i] = convolve(self.nuclei_interp[:, i],
+                                                kernel, 'extend')
+        print(f'Model convolved with a setp of {self.convolution_step} '
+              f'corresponding to {self.convolution_step/self.thermo_interp.shape[0] * 100:.2f}'
+              '% of all interpolated cells')
+        self.comment += f"Model smoothed with a window of {self.convolution_step}"
+    
     def __save_interpolated_model(self):
         """
         Method that saves the interpolated model.
